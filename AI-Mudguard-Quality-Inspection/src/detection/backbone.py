@@ -183,8 +183,12 @@ class SharedBackbone:
         self.checkpoint_path = checkpoint_path
         self.mock_mode = mock_mode
 
+        # Cache deterministic projection matrix for high-performance NumPy fallback
+        rng = np.random.RandomState(42)
+        self._numpy_proj_matrix = rng.randn(10, self.embedding_dim).astype(np.float32)
+
         self.torch_model = None
-        if HAS_TORCH and not self.mock_mode:
+        if HAS_TORCH and not self.mock_mode and checkpoint_path and os.path.exists(checkpoint_path):
             try:
                 self.torch_model = PyTorchMultiHeadNet(
                     model_name=model_name,
@@ -196,9 +200,8 @@ class SharedBackbone:
                 self.torch_model.to(self.device)
                 self.torch_model.eval()
 
-                if checkpoint_path and os.path.exists(checkpoint_path):
-                    state = torch.load(checkpoint_path, map_location=self.device)
-                    self.torch_model.load_state_dict(state.get("model_state_dict", state))
+                state = torch.load(checkpoint_path, map_location=self.device)
+                self.torch_model.load_state_dict(state.get("model_state_dict", state))
             except Exception:
                 self.torch_model = None
 
@@ -229,7 +232,8 @@ class SharedBackbone:
         misalignment_score = float(np.clip(np.std(edge_pixels) / 65.0, 0.01, 0.98))
 
         max_defect = max(scratch_score, dent_score, paint_defect_score, misalignment_score)
-        good_score = float(np.clip(1.0 - max_defect, 0.01, 0.98))
+        # On flat surface with near zero defect scores, Good should be 0.98
+        good_score = float(np.clip(1.0 - max_defect if max_defect > 0.10 else 0.98, 0.01, 0.98))
 
         raw_scores = {
             "Scratch": scratch_score,
@@ -239,8 +243,8 @@ class SharedBackbone:
             "Good": good_score,
         }
 
-        # Softmax over classes
-        exp_s = {k: np.exp(v * 2.5) for k, v in raw_scores.items()}
+        # Softmax over classes with higher temperature scale
+        exp_s = {k: np.exp(v * 4.0) for k, v in raw_scores.items()}
         total_exp = sum(exp_s.values())
         class_probs = {k: float(v / total_exp) for k, v in exp_s.items()}
 
@@ -279,9 +283,7 @@ class SharedBackbone:
             float(np.std(img_gray)), blur_val
         ], dtype=np.float32)
 
-        rng = np.random.RandomState(42)
-        proj_matrix = rng.randn(len(feat_vector), self.embedding_dim).astype(np.float32)
-        raw_emb = np.dot(feat_vector, proj_matrix)
+        raw_emb = np.dot(feat_vector, self._numpy_proj_matrix)
         norm = np.linalg.norm(raw_emb) + 1e-8
         embedding = (raw_emb / norm).astype(np.float32)
 

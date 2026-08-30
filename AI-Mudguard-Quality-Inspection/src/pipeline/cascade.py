@@ -91,10 +91,11 @@ class CascadeStageEngine:
 
         if not quality_assessment.is_acceptable:
             reasons_str = ", ".join(quality_assessment.reasons) if quality_assessment.reasons else "Quality below threshold"
+            exit_decision = Decision.REQUEST_RECAPTURE if quality_assessment.action == QualityAction.REQUEST_RECAPTURE else Decision.REVIEW
             return CascadeExitResult(
                 exited_early=True,
                 exit_stage=CascadeStage.STAGE0_QUALITY_GATE,
-                decision=Decision.REVIEW,
+                decision=exit_decision,
                 reason=f"Early exit at Stage 0: Quality gate failure ({reasons_str})",
                 stages_executed=[CascadeStage.STAGE0_QUALITY_GATE],
             )

@@ -19,7 +19,7 @@ import os
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, Tuple
 from pathlib import Path
 import numpy as np
 
@@ -167,7 +167,7 @@ class InspectionPipeline:
         )
 
     @classmethod
-    def from_config_file(cls, config_path: str | Path, mock_mode: bool = False) -> "InspectionPipeline":
+    def from_config_file(cls, config_path: Union[str, Path], mock_mode: bool = False) -> "InspectionPipeline":
         """Factory constructor loading settings from a YAML configuration file."""
         if yaml is None:
             return cls(mock_mode=mock_mode)
@@ -214,7 +214,10 @@ class InspectionPipeline:
                 has_missing_region=False,
             )
         else:
-            quality = evaluate_image_quality(image)
+            q_meta = meta.copy()
+            if img_rec and img_rec.file_path:
+                q_meta["file_path"] = img_rec.file_path
+            quality = evaluate_image_quality(image, metadata=q_meta)
 
         # Check early exit at Stage 0
         if not bypass_cascade:

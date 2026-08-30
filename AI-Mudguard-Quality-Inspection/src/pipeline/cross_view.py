@@ -12,8 +12,11 @@ class CrossViewReport:
     agreement_score: float  # [0.0, 1.0] (1.0 = unanimous consensus)
     view_count: int
     consensus_label: str
-    is_consistent: bool
-    has_contradiction: bool
+    consensus_decision: Decision = Decision.PASS
+    is_consistent: bool = True
+    has_contradiction: bool = False
+    contradictions_found: List[str] = field(default_factory=list)
+    supported_defects: List[Dict[str, Any]] = field(default_factory=list)
     view_results: Dict[str, InspectionResult] = field(default_factory=dict)
     per_defect_support: List[Dict[str, Any]] = field(default_factory=list)
     adjusted_results: List[InspectionResult] = field(default_factory=list)
@@ -33,6 +36,10 @@ class CrossViewConsistencyChecker:
     ):
         self.spatial_iou_threshold = spatial_iou_threshold
         self.single_view_penalty = single_view_penalty
+
+    def evaluate_part_views(self, results: List[InspectionResult]) -> CrossViewReport:
+        """Alias for check_consistency."""
+        return self.check_consistency(results)
 
     def check_consistency(self, results: List[InspectionResult]) -> CrossViewReport:
         """
@@ -91,8 +98,8 @@ class CrossViewConsistencyChecker:
             max_defect_conf = max(r.prediction.confidence for r in defect_results if r.prediction)
             max_clean_conf = max(r.prediction.confidence for r in clean_results if r.prediction)
 
-            if max_defect_conf >= 0.75 and max_clean_conf >= 0.85:
-                # View 1 sees defect clearly, View 2 sees normal clearly -> potential contradiction or angle occlusion
+            if max_defect_conf >= 0.50 and max_clean_conf >= 0.50:
+                # View 1 sees defect, View 2 sees normal clearly -> contradiction
                 has_contradiction = True
 
         # Check for conflicting defect classes across views
@@ -158,13 +165,33 @@ class CrossViewConsistencyChecker:
             else:
                 adjusted_results.append(r)
 
+        # Consensus decision
+        if has_contradiction:
+            consensus_decision = Decision.REVIEW
+        elif fail_count > 0:
+            consensus_decision = Decision.FAIL
+        elif review_count > 0:
+            consensus_decision = Decision.REVIEW
+        else:
+            consensus_decision = Decision.PASS
+
+        supported_defects = [
+            {"label": d_cls, "views_supporting": [r.image_record.camera_id for r in defect_results if r.prediction and r.prediction.label == d_cls]}
+            for d_cls in defect_classes
+        ]
+
+        contradictions_found = ["Cross-view disagreement between defect and pass predictions"] if has_contradiction else []
+
         return CrossViewReport(
             part_id=part_id,
             agreement_score=agreement_score,
             view_count=view_count,
             consensus_label=consensus_label,
+            consensus_decision=consensus_decision,
             is_consistent=is_consistent,
             has_contradiction=has_contradiction,
+            contradictions_found=contradictions_found,
+            supported_defects=supported_defects,
             view_results=view_map,
             per_defect_support=per_defect_support,
             adjusted_results=adjusted_results,
