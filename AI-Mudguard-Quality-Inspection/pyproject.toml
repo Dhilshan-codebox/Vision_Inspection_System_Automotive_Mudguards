@@ -1,0 +1,26 @@
+# Minimal pyproject configuration
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-mudguard-quality-inspection"
+version = "0.1.0"
+description = "AI Quality Intelligence & Closed-Loop Vision Inspection System for Automotive Mudguards"
+requires-python = ">=3.8"
+dependencies = [
+    "torch",
+    "torchvision",
+    "opencv-python",
+    "pyyaml",
+    "albumentations",
+    "pandas",
+    "numpy",
+    "scikit-learn",
+    "matplotlib",
+    "tqdm",
+    "pydantic>=2.0.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

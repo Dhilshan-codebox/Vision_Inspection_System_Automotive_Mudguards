@@ -1,0 +1,7 @@
+# Development requirements
+# Add testing and linting tools here, e.g.,
+pytest
+# flake8
+# black
+# mypy
+

@@ -1,0 +1,74 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+build/
+Develop-eggs/
+.eggs/
+*.egg-info/
+.dist/
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyCharm
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Data files
+data/
+models/
+logs/
+outputs/
+.env
+.venv
+datasets/
+*.csv
+*.tsv
+*.json
+*.h5
+
+# Model files
+models/
+*.pt
+*.pth
+*.ckpt
+
+# Logs
+logs/
+*.log
+
+# Outputs
+outputs/

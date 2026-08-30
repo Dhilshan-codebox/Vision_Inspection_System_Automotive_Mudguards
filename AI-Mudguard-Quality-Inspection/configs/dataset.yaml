@@ -1,0 +1,9 @@
+# Dataset configuration placeholder
+train_split: 0.8
+val_split: 0.2
+classes:
+  - Scratch
+  - Dent
+  - Paint Defect
+  - Paint Misalignment
+task_type: TO_BE_DETERMINED_AFTER_DATASET_AUDIT

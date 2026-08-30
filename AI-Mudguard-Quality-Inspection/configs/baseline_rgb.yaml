@@ -1,0 +1,104 @@
+# Mudguard Quality Intelligence - Multi-Perspective Pipeline Configuration
+version: "2.0.0"
+model_name: "mudguard_multi_perspective_inspector"
+architecture: "efficientnet_b0_multihead"
+
+dataset:
+  input_resolution: [640, 640]
+  classes:
+    - Scratch
+    - Dent
+    - Paint Defect
+    - Paint Misalignment
+  background_class: "Good"
+  all_classes:
+    - Scratch
+    - Dent
+    - Paint Defect
+    - Paint Misalignment
+    - Good
+
+backbone:
+  model_name: "efficientnet_b0"
+  pretrained: true
+  embedding_dim: 128
+  num_classes: 5
+  severity_levels: 5
+  device: "cpu" # "cuda" or "cpu"
+  checkpoint_path: null
+
+quality_gate:
+  min_laplacian_var: 100.0
+  max_saturation_ratio: 0.15
+  min_coverage_ratio: 0.20
+  min_mean_intensity: 20.0
+  max_mean_intensity: 235.0
+
+detection_thresholds:
+  confidence_threshold: 0.50
+  nms_iou_threshold: 0.45
+  scratch_threshold: 0.50
+  dent_threshold: 0.55
+  paint_defect_threshold: 0.50
+  paint_misalignment_threshold: 0.60
+
+cascade:
+  enable_early_exits: true
+  stage0_quality_gate: true
+  stage2_screening_pass_threshold: 0.90
+  stage2_screening_max_persp_score: 0.25
+  stage4_require_depth_for_dents: true
+
+perspectives:
+  appearance:
+    scratch_sensitivity: 0.50
+    multiscale_sobel: true
+  texture:
+    roughness_threshold: 25.0
+    tile_size: 224
+    tile_stride: 160
+    use_lbp: true
+  geometry:
+    dent_depth_threshold_mm: 2.0
+  context:
+    expected_viewpoints:
+      - "view_top"
+      - "view_side"
+      - "view_front"
+      - "cam_top"
+      - "cam_side"
+  uncertainty:
+    max_acceptable_uncertainty: 0.40
+    epistemic_weight: 0.60
+    aleatoric_weight: 0.40
+
+novelty:
+  patch_size: 16
+  anomaly_threshold: 0.50
+  use_embedding: true
+
+cross_view:
+  spatial_iou_threshold: 0.30
+  single_view_penalty: 0.40
+
+late_fusion:
+  version: "2.0.0"
+  weights:
+    rgb_detector: 0.35
+    appearance: 0.20
+    texture: 0.15
+    geometry: 0.15
+    context: 0.05
+    uncertainty: 0.05
+    novelty: 0.05
+  thresholds:
+    fail_defect_score: 0.60
+    review_borderline_low: 0.35
+    review_borderline_high: 0.60
+    max_acceptable_uncertainty: 0.40
+
+active_learning:
+  high_priority_uncertainty: 0.35
+  high_priority_novelty: 0.50
+  queue_path: "logs/active_learning_queue.jsonl"
+  batch_size: 20
