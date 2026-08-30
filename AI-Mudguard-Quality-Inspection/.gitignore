@@ -48,7 +48,8 @@ coverage.xml
 dmypy.json
 
 # Data files
-data/
+/data/
+/data
 models/
 logs/
 outputs/
