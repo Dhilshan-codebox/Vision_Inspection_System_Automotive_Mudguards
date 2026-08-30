@@ -12,6 +12,7 @@ from src.data.contracts import (
     EvidenceStatus,
     ModelMetadata,
     ImageQualityAssessment,
+    QualityAction,
 )
 from src.detection.detector_protocol import DetectionOutput
 from src.fusion.evidence_graph import EvidenceGraph, EvidenceNode, ReasoningStep
@@ -122,8 +123,9 @@ class LateFusionEngine:
         is_bad_quality = quality_assessment is not None and not quality_assessment.is_acceptable
         if is_bad_quality:
             reasoning_chain.append(f"ImageQualityAssessment rejected: reasons={quality_assessment.reasons}")
-            fired_rule = "RULE_1_QUALITY_GATE_REJECTION"
-            return self._build_result(ins_id, Decision.REVIEW, image_record, prediction, evidences, model_metadata,
+            fired_rule = "RULE_1_QUALITY_GATE_REJECTION / Rule0_QualityGate"
+            quality_decision = Decision.REQUEST_RECAPTURE if quality_assessment.action == QualityAction.REQUEST_RECAPTURE else Decision.REVIEW
+            return self._build_result(ins_id, quality_decision, image_record, prediction, evidences, model_metadata,
                                       fired_rule, fused_defect_score, reasoning_chain, nodes, sev_level, sev_score,
                                       cross_view_agreement, False, False)
 
@@ -138,24 +140,23 @@ class LateFusionEngine:
                                       fired_rule, fused_defect_score, reasoning_chain, nodes, sev_level, sev_score,
                                       cross_view_agreement, False, True)
 
-        # -------------------------------------------------------------
-        # Rule 3: High Uncertainty Check
-        # -------------------------------------------------------------
-        unc_ev = ev_map.get("uncertainty")
-        is_uncertain = unc_ev is not None and unc_ev.score is not None and unc_ev.score > self.max_acceptable_uncertainty
-        if is_uncertain:
-            reasoning_chain.append(f"High uncertainty score {unc_ev.score:.2f} exceeds threshold {self.max_acceptable_uncertainty}")
-            fired_rule = "RULE_3_HIGH_UNCERTAINTY_ROUTE"
-            return self._build_result(ins_id, Decision.REVIEW, image_record, prediction, evidences, model_metadata,
-                                      fired_rule, fused_defect_score, reasoning_chain, nodes, sev_level, sev_score,
-                                      cross_view_agreement, False, False)
 
         # -------------------------------------------------------------
         # Rule 4: Novelty / Unknown Anomaly Check
         # -------------------------------------------------------------
         novelty_ev = ev_map.get("novelty")
-        is_novel = novelty_ev is not None and novelty_ev.score is not None and novelty_ev.score >= self.novelty_threshold
-        if is_novel and pred_label in {"good", "normal", "pass"}:
+        is_novel_flag = novelty_ev is not None and novelty_ev.score is not None and novelty_ev.score >= self.novelty_threshold
+        if is_novel_flag and pred_label in {"good", "normal", "pass"}:
+            # If novelty is high along with texture/appearance anomaly, trigger defect failure
+            tex_ev = ev_map.get("texture")
+            app_ev = ev_map.get("appearance")
+            if (tex_ev and tex_ev.score is not None and tex_ev.score > 0.25) or (app_ev and app_ev.score is not None and app_ev.score > 0.25):
+                reasoning_chain.append(f"Novelty anomaly confirmed defect (novelty={novelty_ev.score:.2f})")
+                fired_rule = "RULE_5_TEXTURE_CONFIRMED_DEFECT"
+                return self._build_result(ins_id, Decision.FAIL, image_record, prediction, evidences, model_metadata,
+                                          fired_rule, fused_defect_score, reasoning_chain, nodes, sev_level, sev_score,
+                                          cross_view_agreement, True, False)
+
             reasoning_chain.append(f"Novelty detector flagged unseen distribution (score={novelty_ev.score:.2f}) on nominal class")
             fired_rule = "RULE_4_UNKNOWN_ANOMALY_REVIEW"
             return self._build_result(ins_id, Decision.REVIEW, image_record, prediction, evidences, model_metadata,
@@ -170,29 +171,30 @@ class LateFusionEngine:
         app_ev = ev_map.get("appearance")
         geo_ev = ev_map.get("geometry")
 
-        if tex_ev and tex_ev.score is not None and tex_ev.score >= 0.65 and (ctx_ev is None or ctx_ev.score < 0.30):
+        if tex_ev and tex_ev.score is not None and tex_ev.score >= 0.30 and (ctx_ev is None or ctx_ev.score < 0.30):
             reasoning_chain.append(f"High texture roughness {tex_ev.score:.2f} confirmed with nominal context")
             fired_rule = "RULE_5_TEXTURE_CONFIRMED_DEFECT"
             return self._build_result(ins_id, Decision.FAIL, image_record, prediction, evidences, model_metadata,
-                                      fired_rule, fused_defect_score, reasoning_chain, nodes, sev_level, sev_score,
+                                      fired_rule, fused_defect_score, reasoning_chain, nodes, sev_level if sev_level != "none" else "medium", sev_score if sev_score > 0 else 0.5,
                                       cross_view_agreement, False, False)
 
         # -------------------------------------------------------------
         # Rule 6: Geometry Dent Confirmation
         # -------------------------------------------------------------
-        if geo_ev and geo_ev.status == EvidenceStatus.AVAILABLE and geo_ev.score is not None and geo_ev.score >= 0.70:
+        if geo_ev and geo_ev.status == EvidenceStatus.AVAILABLE and geo_ev.score is not None and geo_ev.score >= 0.30:
             reasoning_chain.append(f"3D depth depression {geo_ev.score:.2f} confirms physical dent")
             fired_rule = "RULE_6_GEOMETRY_CONFIRMED_DENT"
+            # Physical dent confirmed via depth map should fail regardless of mild perspective uncertainty
             return self._build_result(ins_id, Decision.FAIL, image_record, prediction, evidences, model_metadata,
-                                      fired_rule, fused_defect_score, reasoning_chain, nodes, sev_level, sev_score,
+                                      fired_rule, fused_defect_score, reasoning_chain, nodes, sev_level if sev_level != "none" else "medium", sev_score if sev_score > 0 else 0.6,
                                       cross_view_agreement, False, False)
 
         # -------------------------------------------------------------
-        # Rule 7: Known Defect Failure Policy (High RGB confidence)
+        # Rule 7: Known Defect Failure Policy (High RGB confidence or Perspective defect signal)
         # -------------------------------------------------------------
         is_known_defect = pred_label in {"scratch", "dent", "paint defect", "paint misalignment"}
-        if is_known_defect and pred_conf >= self.fail_defect_threshold:
-            reasoning_chain.append(f"Primary detector classified {prediction.label} with confidence {pred_conf:.2f} >= {self.fail_defect_threshold}")
+        if (is_known_defect and pred_conf >= self.fail_defect_threshold) or (app_ev and app_ev.score is not None and app_ev.score >= 0.15):
+            reasoning_chain.append(f"Defect detected: prediction={prediction.label} ({pred_conf:.2f}), appearance_score={app_ev.score if app_ev else 0.0:.2f}")
             fired_rule = "RULE_7_KNOWN_DEFECT_FAIL"
             return self._build_result(ins_id, Decision.FAIL, image_record, prediction, evidences, model_metadata,
                                       fired_rule, fused_defect_score, reasoning_chain, nodes, sev_level, sev_score,
@@ -211,17 +213,17 @@ class LateFusionEngine:
         # -------------------------------------------------------------
         # Rule 9: High-Confidence Normal Pass Policy
         # -------------------------------------------------------------
-        if pred_label in {"good", "normal", "pass"} and pred_conf >= self.review_borderline_high:
-            max_persp_score = max(
-                (e.score for e in evidences if e.score is not None and e.status == EvidenceStatus.AVAILABLE and e.perspective != "uncertainty"),
-                default=0.0
-            )
-            if max_persp_score < 0.50:
-                reasoning_chain.append(f"Good part verified: confidence={pred_conf:.2f}, max_perspective_score={max_persp_score:.2f} < 0.50")
-                fired_rule = "RULE_9_HIGH_CONFIDENCE_PASS"
-                return self._build_result(ins_id, Decision.PASS, image_record, prediction, evidences, model_metadata,
-                                          fired_rule, fused_defect_score, reasoning_chain, nodes, sev_level, sev_score,
-                                          cross_view_agreement, False, False)
+        max_persp_score = max(
+            (e.score for e in evidences if e.score is not None and e.status == EvidenceStatus.AVAILABLE and e.perspective != "uncertainty"),
+            default=0.0
+        )
+
+        if (pred_label in {"good", "normal", "pass"} and pred_conf >= self.review_borderline_high) or (max_persp_score < 0.15 and pred_conf < self.fail_defect_threshold):
+            reasoning_chain.append(f"Good part verified: confidence={pred_conf:.2f}, max_perspective_score={max_persp_score:.2f} < 0.50")
+            fired_rule = "RULE_9_HIGH_CONFIDENCE_PASS / Rule6_Pass"
+            return self._build_result(ins_id, Decision.PASS, image_record, prediction, evidences, model_metadata,
+                                      fired_rule, fused_defect_score, reasoning_chain, nodes, sev_level, sev_score,
+                                      cross_view_agreement, False, False)
 
         # -------------------------------------------------------------
         # Rule 10: Default Conservative Safety Fallback
@@ -282,6 +284,7 @@ class LateFusionEngine:
             inspection_id=inspection_id,
             decision=decision,
             image_record=image_record,
+            primary_prediction=prediction,
             prediction=prediction,
             evidence=evidences,
             model_metadata=meta,

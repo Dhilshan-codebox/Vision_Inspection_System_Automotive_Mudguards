@@ -60,7 +60,14 @@ class SeverityEstimator:
         pred_label = pred.label.lower()
         pred_conf = pred.confidence
 
-        if pred_label in {"good", "normal", "pass"}:
+        ev_map = {e.perspective: e for e in evidences}
+        app_score = ev_map.get("appearance").score if ev_map.get("appearance") else 0.0
+        tex_score = ev_map.get("texture").score if ev_map.get("texture") else 0.0
+        geom_ev = ev_map.get("geometry")
+
+        has_defect_signal = (app_score or 0.0) >= 0.15 or (tex_score or 0.0) >= 0.25 or (geom_ev and geom_ev.score and geom_ev.score >= 0.30)
+
+        if pred_label in {"good", "normal", "pass"} and not has_defect_signal:
             return SeverityAssessment(
                 level=SeverityLevel.NONE,
                 score=0.0,

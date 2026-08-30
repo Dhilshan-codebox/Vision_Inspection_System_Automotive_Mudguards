@@ -119,12 +119,12 @@ class EdgeBenchmark:
 
         profile = BenchmarkProfile(
             num_runs=num_runs,
-            avg_latency_ms=percentiles["mean_ms"],
-            p50_latency_ms=percentiles["p50_ms"],
-            p95_latency_ms=percentiles["p95_ms"],
-            p99_latency_ms=percentiles["p99_ms"],
-            min_latency_ms=percentiles["min_ms"],
-            max_latency_ms=percentiles["max_ms"],
+            avg_latency_ms=percentiles["mean"],
+            p50_latency_ms=percentiles["p50"],
+            p95_latency_ms=percentiles["p95"],
+            p99_latency_ms=percentiles["p99"],
+            min_latency_ms=percentiles["min"],
+            max_latency_ms=percentiles["max"],
             fps=fps,
             model_size_mb=model_size_mb,
             onnx_exported=onnx_success,

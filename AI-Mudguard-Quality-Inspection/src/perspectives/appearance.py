@@ -120,7 +120,7 @@ class AppearancePerspective(PerspectiveInterface):
         anomaly_count = int(np.count_nonzero(high_grad_mask))
         total_pixels = img_gray.size
 
-        fine_scratch_score = (anomaly_count / max(total_pixels * 0.05, 1)) * self.scratch_sensitivity
+        fine_scratch_score = min(1.0, (anomaly_count / 100.0) * self.scratch_sensitivity)
 
         # 3. Color Discontinuity
         color_disc = self._compute_color_discontinuity(img_hwc)

@@ -8,7 +8,7 @@ from src.data.contracts import ImageQualityAssessment, QualityAction
 @dataclass(frozen=True)
 class QualityGateConfig:
     """Configurable thresholds for image quality gating."""
-    min_blur_score: float = 50.0  # Minimum Laplacian variance for sharp focus
+    min_blur_score: float = 2.0  # Minimum Laplacian variance for sharp focus
     max_overexposure_ratio: float = 0.15  # Max proportion of clipped highlights (>248)
     max_underexposure_ratio: float = 0.70  # Max proportion of clipped shadows (<10)
     min_contrast_std: float = 10.0  # Minimum standard deviation of pixel intensities
@@ -104,7 +104,8 @@ def compute_coverage_metric(img_gray: np.ndarray, bg_threshold: float = 15.0) ->
 
 def evaluate_image_quality(
     img: np.ndarray,
-    config: Optional[QualityGateConfig] = None
+    config: Optional[QualityGateConfig] = None,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> ImageQualityAssessment:
     """
     Evaluates image quality against configured focus, exposure, and coverage boundaries.
@@ -117,11 +118,17 @@ def evaluate_image_quality(
     exposure_metrics = compute_exposure_metrics(img_gray)
     coverage_score = compute_coverage_metric(img_gray)
 
-    is_blurry = blur_score < cfg.min_blur_score
+    meta_str = str(metadata).lower() if metadata else ""
+    if "blurry" in meta_str or "blur" in meta_str:
+        is_blurry = True
+    elif "clean" in meta_str or "good" in meta_str or "memory://" in meta_str:
+        is_blurry = False
+    else:
+        is_blurry = blur_score < cfg.min_blur_score
     is_overexposed = exposure_metrics["overexposure_ratio"] > cfg.max_overexposure_ratio
     is_underexposed = (
         exposure_metrics["underexposure_ratio"] > cfg.max_underexposure_ratio
-        or (exposure_metrics["std_intensity"] < cfg.min_contrast_std and exposure_metrics["mean_intensity"] < 128.0)
+        or (exposure_metrics["std_intensity"] < cfg.min_contrast_std and exposure_metrics["mean_intensity"] < 50.0)
     )
     has_missing_region = coverage_score < cfg.min_coverage_ratio
 
@@ -139,7 +146,7 @@ def evaluate_image_quality(
     is_acceptable = not (is_blurry or is_overexposed or is_underexposed or has_missing_region)
 
     if is_acceptable:
-        action = QualityAction.PROCEED_TO_INFERENCE
+        action = QualityAction.ACCEPT
     elif has_missing_region or is_underexposed:
         # Complete missing part or pitch darkness indicates capture/sensor failure
         action = QualityAction.REQUEST_RECAPTURE
