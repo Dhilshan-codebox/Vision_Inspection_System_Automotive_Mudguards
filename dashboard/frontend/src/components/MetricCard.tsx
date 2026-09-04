@@ -8,16 +8,16 @@ interface MetricCardProps {
 }
 
 export const MetricCard: React.FC<MetricCardProps> = ({ title, value, subtitle, status = 'neutral' }) => {
-  let borderColor = 'border-slate-700';
-  if (status === 'good') borderColor = 'border-emerald-500';
-  if (status === 'warning') borderColor = 'border-amber-500';
-  if (status === 'danger') borderColor = 'border-rose-500';
+  let statusClass = 'border-slate-200 text-slate-900';
+  if (status === 'good') statusClass = 'border-emerald-300 text-emerald-900 bg-emerald-50/30';
+  if (status === 'warning') statusClass = 'border-amber-300 text-amber-900 bg-amber-50/30';
+  if (status === 'danger') statusClass = 'border-rose-300 text-rose-900 bg-rose-50/30';
 
   return (
-    <div className={`bg-slate-800 p-4 rounded-lg border ${borderColor} shadow-sm`}>
-      <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">{title}</div>
-      <div className="text-2xl font-bold text-slate-100 my-1">{value}</div>
-      {subtitle && <div className="text-xs text-slate-400">{subtitle}</div>}
+    <div className={`bg-white p-4 rounded-lg border ${statusClass} shadow-sm`}>
+      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{title}</div>
+      <div className="text-2xl font-black text-slate-900 my-1">{value}</div>
+      {subtitle && <div className="text-xs text-slate-500 font-medium">{subtitle}</div>}
     </div>
   );
 };

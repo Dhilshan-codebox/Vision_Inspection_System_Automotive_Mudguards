@@ -15,8 +15,10 @@ def test_inspection_pipeline_clean_good_mudguard():
     pipeline = InspectionPipeline(mock_mode=False)
 
     h, w = 640, 640
-    # Clean homogeneous mudguard surface
+    # Clean textured surface (non-zero Laplacian variance)
+    np.random.seed(42)
     clean_img = np.full((h, w, 3), 120, dtype=np.uint8)
+    clean_img[::8, ::8, :] = 135
 
     rec = ImageRecord(
         image_id="test_clean_001",
