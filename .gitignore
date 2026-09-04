@@ -4,9 +4,10 @@ __pycache__/
 *$py.class
 
 # Node / JS
-node_modules/
-dist/
-build/
+node_modules
+**/node_modules/
+**/dist/
+**/build/
 .vite/
 
 # C extensions

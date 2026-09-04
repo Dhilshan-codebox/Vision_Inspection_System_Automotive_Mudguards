@@ -4,9 +4,15 @@ from typing import Dict, Any, Optional
 import numpy as np
 
 # Add AI-Mudguard-Quality-Inspection to sys.path
-root_dir = Path(__file__).resolve().parents[3] / "AI-Mudguard-Quality-Inspection"
-if str(root_dir) not in sys.path:
-    sys.path.insert(0, str(root_dir))
+# Dynamically locate repo root containing AI-Mudguard-Quality-Inspection
+curr = Path(__file__).resolve()
+while curr.parent != curr:
+    candidate = curr / "AI-Mudguard-Quality-Inspection"
+    if candidate.exists() and candidate.is_dir():
+        if str(candidate) not in sys.path:
+            sys.path.insert(0, str(candidate))
+        break
+    curr = curr.parent
 
 from src.pipeline.inspection_pipeline import InspectionPipeline
 from src.data.contracts import ImageRecord

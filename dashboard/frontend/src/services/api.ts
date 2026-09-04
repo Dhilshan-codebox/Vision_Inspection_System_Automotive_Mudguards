@@ -1,6 +1,6 @@
 import { InspectionResult, DatasetAuditReport, FeedbackSubmission } from '../types/inspection';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
 export class ApiClient {
   static async checkHealth(): Promise<{ status: string; version: string }> {
