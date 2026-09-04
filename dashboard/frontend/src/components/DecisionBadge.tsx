@@ -1,31 +1,34 @@
 import React from 'react';
+import { Decision } from '../types/inspection';
 
 interface DecisionBadgeProps {
-  decision: 'PASS' | 'REVIEW' | 'FAIL' | 'REQUEST_RECAPTURE' | string;
+  decision: Decision | string;
 }
 
 export const DecisionBadge: React.FC<DecisionBadgeProps> = ({ decision }) => {
-  let bgColor = 'bg-gray-500';
-  let textColor = 'text-white';
+  const normalized = String(decision).toUpperCase();
 
-  switch (decision) {
-    case 'PASS':
-      bgColor = 'bg-emerald-600';
-      break;
-    case 'REVIEW':
-      bgColor = 'bg-amber-500';
-      break;
-    case 'FAIL':
-      bgColor = 'bg-rose-600';
-      break;
-    case 'REQUEST_RECAPTURE':
-      bgColor = 'bg-indigo-600';
-      break;
+  let bgColor = 'bg-slate-200 text-slate-800 border-slate-300';
+  let icon = '•';
+
+  if (normalized === 'PASS') {
+    bgColor = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+    icon = '✓';
+  } else if (normalized === 'REVIEW') {
+    bgColor = 'bg-amber-100 text-amber-800 border-amber-300';
+    icon = '⚠';
+  } else if (normalized === 'FAIL') {
+    bgColor = 'bg-rose-100 text-rose-800 border-rose-300';
+    icon = '✕';
+  } else if (normalized === 'REQUEST_RECAPTURE') {
+    bgColor = 'bg-indigo-100 text-indigo-800 border-indigo-300';
+    icon = '⟳';
   }
 
   return (
-    <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-sm font-bold tracking-wide shadow-sm ${bgColor} ${textColor}`}>
-      {decision}
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider border shadow-sm ${bgColor}`}>
+      <span className="font-mono text-sm">{icon}</span>
+      <span>{normalized}</span>
     </span>
   );
 };

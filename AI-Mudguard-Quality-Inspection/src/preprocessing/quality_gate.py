@@ -118,13 +118,8 @@ def evaluate_image_quality(
     exposure_metrics = compute_exposure_metrics(img_gray)
     coverage_score = compute_coverage_metric(img_gray)
 
-    meta_str = str(metadata).lower() if metadata else ""
-    if "blurry" in meta_str or "blur" in meta_str:
-        is_blurry = True
-    elif "clean" in meta_str or "good" in meta_str or "memory://" in meta_str:
-        is_blurry = False
-    else:
-        is_blurry = blur_score < cfg.min_blur_score
+    # Standard blur evaluation using configured min_blur_score threshold
+    is_blurry = blur_score < cfg.min_blur_score
     is_overexposed = exposure_metrics["overexposure_ratio"] > cfg.max_overexposure_ratio
     is_underexposed = (
         exposure_metrics["underexposure_ratio"] > cfg.max_underexposure_ratio
