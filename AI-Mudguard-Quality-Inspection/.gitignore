@@ -3,12 +3,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Node / JS
-node_modules/
-dist/
-build/
-.vite/
-
 # C extensions
 *.so
 
