@@ -4,7 +4,10 @@ from typing import Dict, Any, Optional
 import numpy as np
 
 # Add AI-Mudguard-Quality-Inspection to sys.path
-root_dir = Path(__file__).resolve().parents[3] / "AI-Mudguard-Quality-Inspection"
+repo_root = Path(__file__).resolve().parents[4]
+root_dir = repo_root / "AI-Mudguard-Quality-Inspection"
+if not root_dir.exists():
+    root_dir = Path(__file__).resolve().parents[3] / "AI-Mudguard-Quality-Inspection"
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
