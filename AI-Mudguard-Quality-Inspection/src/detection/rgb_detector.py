@@ -134,20 +134,65 @@ class RGBBaselineDetector:
         top_label = max(class_probs, key=class_probs.get)
         top_confidence = class_probs[top_label]
 
-        # Bounding box localization for detected defect
+        # Precise localized bounding box calculation
         detections: List[DetectionItem] = []
         if top_label != "Good" and top_confidence >= self.confidence_threshold:
-            high_mask = grad_x > np.percentile(grad_x, 90)
-            if np.count_nonzero(high_mask) > 0:
-                y_idx, x_idx = np.nonzero(high_mask)
-                bbox = [
-                    float(np.min(x_idx)),
-                    float(np.min(y_idx)),
-                    float(np.max(x_idx) + 1),
-                    float(np.max(y_idx) + 1),
-                ]
-            else:
-                bbox = [float(w * 0.25), float(h * 0.25), float(w * 0.75), float(h * 0.75)]
+            bbox = None
+            try:
+                from scipy.ndimage import gaussian_filter, label
+                blur_bg = gaussian_filter(img_gray.astype(np.float32), sigma=15)
+                diff = np.abs(img_gray.astype(np.float32) - blur_bg)
+
+                grad = np.zeros((h, w), dtype=np.float32)
+                grad[:, :-1] += grad_x
+                grad[:-1, :] += grad_y
+
+                defect_mask = (diff > 25.0) & (grad < 40.0) & (img_gray > 20) & (img_gray < 250)
+                labeled, num_features = label(defect_mask)
+
+                best_bbox = None
+                max_defect_size = 0
+
+                for i in range(1, num_features + 1):
+                    mask_i = (labeled == i)
+                    sz = np.sum(mask_i)
+                    if 15 < sz < (h * w * 0.3):
+                        if sz > max_defect_size:
+                            ys, xs = np.nonzero(mask_i)
+                            max_defect_size = sz
+                            best_bbox = [
+                                float(np.min(xs)),
+                                float(np.min(ys)),
+                                float(np.max(xs) + 1),
+                                float(np.max(ys) + 1),
+                            ]
+
+                if best_bbox:
+                    bbox = best_bbox
+                else:
+                    high_mask = grad_x > np.percentile(grad_x, 92)
+                    if np.count_nonzero(high_mask) > 0:
+                        y_idx, x_idx = np.nonzero(high_mask)
+                        bbox = [
+                            float(np.min(x_idx)),
+                            float(np.min(y_idx)),
+                            float(np.max(x_idx) + 1),
+                            float(np.max(y_idx) + 1),
+                        ]
+                    else:
+                        bbox = [float(w * 0.3), float(h * 0.3), float(w * 0.7), float(h * 0.7)]
+            except Exception:
+                high_mask = grad_x > np.percentile(grad_x, 90)
+                if np.count_nonzero(high_mask) > 0:
+                    y_idx, x_idx = np.nonzero(high_mask)
+                    bbox = [
+                        float(np.min(x_idx)),
+                        float(np.min(y_idx)),
+                        float(np.max(x_idx) + 1),
+                        float(np.max(y_idx) + 1),
+                    ]
+                else:
+                    bbox = [float(w * 0.3), float(h * 0.3), float(w * 0.7), float(h * 0.7)]
 
             detections.append(
                 DetectionItem(

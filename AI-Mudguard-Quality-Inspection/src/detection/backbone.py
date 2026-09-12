@@ -287,20 +287,69 @@ class SharedBackbone:
         norm = np.linalg.norm(raw_emb) + 1e-8
         embedding = (raw_emb / norm).astype(np.float32)
 
-        # Localization hint
+        # Precise localized bounding box calculation
         bbox_hint = None
         if top_class != "Good" and top_conf >= 0.40:
-            high_mask = grad_x > np.percentile(grad_x, 88)
-            if np.count_nonzero(high_mask) > 0:
-                y_idx, x_idx = np.nonzero(high_mask)
-                bbox_hint = [
-                    float(np.min(x_idx)),
-                    float(np.min(y_idx)),
-                    float(np.max(x_idx) + 1),
-                    float(np.max(y_idx) + 1),
-                ]
-            else:
-                bbox_hint = [float(w * 0.2), float(h * 0.2), float(w * 0.8), float(h * 0.8)]
+            # 1. Background subtraction via local mean surface filter
+            try:
+                from scipy.ndimage import gaussian_filter, label
+                blur_bg = gaussian_filter(img_gray.astype(np.float32), sigma=15)
+                diff = np.abs(img_gray.astype(np.float32) - blur_bg)
+
+                # Ignore outer boundaries by masking high-gradient part edges
+                dx = np.abs(img_gray.astype(np.float32)[:, 1:] - img_gray.astype(np.float32)[:, :-1])
+                dy = np.abs(img_gray.astype(np.float32)[1:, :] - img_gray.astype(np.float32)[:-1, :])
+                grad = np.zeros((h, w), dtype=np.float32)
+                grad[:, :-1] += dx
+                grad[:-1, :] += dy
+
+                # Defect mask: anomalous local contrast away from sharp part borders
+                defect_mask = (diff > 25.0) & (grad < 40.0) & (img_gray > 20) & (img_gray < 250)
+                labeled, num_features = label(defect_mask)
+
+                best_bbox = None
+                max_defect_size = 0
+
+                for i in range(1, num_features + 1):
+                    mask_i = (labeled == i)
+                    sz = np.sum(mask_i)
+                    if 15 < sz < (h * w * 0.3):
+                        if sz > max_defect_size:
+                            ys, xs = np.nonzero(mask_i)
+                            max_defect_size = sz
+                            best_bbox = [
+                                float(np.min(xs)),
+                                float(np.min(ys)),
+                                float(np.max(xs) + 1),
+                                float(np.max(ys) + 1),
+                            ]
+
+                if best_bbox:
+                    bbox_hint = best_bbox
+                else:
+                    high_mask = (grad_x > np.percentile(grad_x, 92)) & (img_gray[:, :-1] > 30)
+                    if np.count_nonzero(high_mask) > 0:
+                        y_idx, x_idx = np.nonzero(high_mask)
+                        bbox_hint = [
+                            float(np.min(x_idx)),
+                            float(np.min(y_idx)),
+                            float(np.max(x_idx) + 1),
+                            float(np.max(y_idx) + 1),
+                        ]
+                    else:
+                        bbox_hint = [float(w * 0.3), float(h * 0.3), float(w * 0.7), float(h * 0.7)]
+            except Exception:
+                high_mask = grad_x > np.percentile(grad_x, 90)
+                if np.count_nonzero(high_mask) > 0:
+                    y_idx, x_idx = np.nonzero(high_mask)
+                    bbox_hint = [
+                        float(np.min(x_idx)),
+                        float(np.min(y_idx)),
+                        float(np.max(x_idx) + 1),
+                        float(np.max(y_idx) + 1),
+                    ]
+                else:
+                    bbox_hint = [float(w * 0.3), float(h * 0.3), float(w * 0.7), float(h * 0.7)]
 
         # Geometry residual (mm depth estimate from shadow pattern)
         geometry_residual = float(dent_score * 2.8) if dent_score > 0.3 else 0.0
