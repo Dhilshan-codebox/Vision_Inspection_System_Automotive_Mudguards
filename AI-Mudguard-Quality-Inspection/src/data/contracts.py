@@ -43,6 +43,8 @@ class QualityAction(str, Enum):
 class ImageRecord(BaseModel):
     image_id: str
     file_path: str
+    label: Optional[str] = None
+    split: Optional[str] = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     camera_id: str = "cam_main"
     part_id: Optional[str] = None
@@ -50,6 +52,8 @@ class ImageRecord(BaseModel):
     width: Optional[int] = None
     height: Optional[int] = None
     channels: Optional[int] = 3
+    annotation_reference: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class Evidence(BaseModel):
@@ -74,15 +78,19 @@ class Evidence(BaseModel):
 class Prediction(BaseModel):
     label: str
     confidence: float = Field(ge=0.0, le=1.0)
+    candidate_scores: Dict[str, float] = Field(default_factory=dict)
+    distance_or_probability_evidence: Optional[Dict[str, float]] = None
+    model_version: str = "2.0.0"
     bbox: Optional[List[float]] = None
     severity: Optional[SeverityLevel] = None
 
 
 class ModelMetadata(BaseModel):
-    version: str
-    name: str
+    version: str = "2.0.0"
+    name: str = "mudguard_multi_perspective_inspector"
     thresholds: Dict[str, float] = Field(default_factory=dict)
     trained_at: Optional[str] = None
+    artifact_hash: Optional[str] = None
 
 
 class ImageQualityAssessment(BaseModel):
@@ -109,8 +117,11 @@ class InspectionResult(BaseModel):
     evidence: List[Evidence] = Field(default_factory=list)
     primary_prediction: Optional[Prediction] = None
     prediction: Optional[Prediction] = None
+    anomaly_score: float = 0.0
     severity: SeverityLevel = SeverityLevel.NONE
+    reason: str = ""
     model_metadata: Optional[ModelMetadata] = None
+    is_demo: bool = False
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     latency_ms: float = 0.0
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -158,3 +169,17 @@ class DatasetAuditReport(BaseModel):
     dimension_stats: Dict[str, Any] = Field(default_factory=dict)
     findings: List[AuditFinding] = Field(default_factory=list)
     passed_quality_gate: bool = True
+
+
+class EvaluationReport(BaseModel):
+    split: str
+    sample_count: int
+    metrics: Dict[str, float] = Field(default_factory=dict)
+    confusion_matrix: List[List[int]] = Field(default_factory=list)
+    per_class_metrics: Dict[str, Dict[str, float]] = Field(default_factory=dict)
+    calibration: Dict[str, Any] = Field(default_factory=dict)
+    latency: Dict[str, float] = Field(default_factory=dict)
+    artifact_hash: str = "unknown"
+    is_demo: bool = False
+    evaluation_claim: str = "HELD_OUT_EVALUATION"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
