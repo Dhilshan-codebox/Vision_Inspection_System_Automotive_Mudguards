@@ -76,17 +76,14 @@ def test_letterbox_pad_aspect_ratio():
     assert meta["resized_shape"] == (150, 300)
     assert meta["pad_top"] == 75
     assert meta["pad_left"] == 0
-    # Top and bottom padding areas should have pad_value 114
     assert np.all(padded[0:70, :, :] == 114)
 
 
 def test_roi_and_tile_extraction(sharp_image: np.ndarray):
     """Test region-of-interest cropping and overlapping tile generation."""
-    # ROI extraction
     roi = extract_roi(sharp_image, bbox=[50, 50, 150, 150])
     assert roi.shape == (100, 100, 3)
 
-    # Overlapping tiles
     tiles = create_tiles(sharp_image, tile_size=(128, 128), overlap=16)
     assert len(tiles) > 1
     for tile_arr, coords in tiles:
@@ -138,3 +135,21 @@ def test_quality_gate_underexposed_and_missing_region():
     assert assessment.is_underexposed
     assert assessment.has_missing_region
     assert assessment.recommended_action == QualityAction.REQUEST_RECAPTURE
+
+
+def test_grayscale_and_single_channel():
+    """Test handling of 2D grayscale, single channel, and 4-channel inputs."""
+    gray_2d = np.full((100, 100), 128, dtype=np.uint8)
+    padded, meta = letterbox_pad(gray_2d, target_size=(200, 200))
+    assert padded.shape == (200, 200, 1)
+
+    rgba = np.full((100, 100, 4), 128, dtype=np.uint8)
+    gray = to_grayscale(rgba)
+    assert gray.shape == (100, 100)
+
+
+def test_empty_image_handling():
+    """Test graceful handling of zero-sized or tiny image cropping."""
+    img = np.zeros((100, 100, 3), dtype=np.uint8)
+    invalid_roi = extract_roi(img, bbox=[10, 10, 10, 10])
+    assert invalid_roi.shape[0] == 0 or invalid_roi.shape[1] == 0

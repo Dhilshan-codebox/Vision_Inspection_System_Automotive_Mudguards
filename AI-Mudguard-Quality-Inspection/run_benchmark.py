@@ -2,13 +2,15 @@
 """
 CLI Entry Point: Run Edge AI Deployment Benchmark.
 Usage:
-    python run_benchmark.py --runs 50 --export-onnx
+    python run_benchmark.py --runs 30 --export-onnx
+    python run_benchmark.py --demo --runs 10
 """
 
 import sys
 import os
 import argparse
 import json
+from pathlib import Path
 
 from src.evaluation.edge_benchmark import EdgeBenchmark
 from src.pipeline.inspection_pipeline import InspectionPipeline
@@ -22,6 +24,7 @@ def main():
     parser.add_argument("--onnx-path", type=str, default="models/onnx/mudguard_backbone.onnx", help="ONNX output path")
     parser.add_argument("--output", type=str, default="outputs/metrics/benchmark_report.json", help="Path to save benchmark JSON report")
     parser.add_argument("--config", type=str, default="configs/baseline_rgb.yaml", help="Path to YAML pipeline config")
+    parser.add_argument("--demo", action="store_true", help="Explicit demo flag for benchmark runs without dataset requirement")
 
     args = parser.parse_args()
 
@@ -35,6 +38,8 @@ def main():
 
     print("=" * 65)
     print(f"       MUDGUARD AI - EDGE DEPLOYMENT LATENCY BENCHMARK")
+    if args.demo:
+        print("       [DEMO MODE - SYNTHETIC BENCHMARK]")
     print("=" * 65)
     print(f"Iterations   : {args.runs} (+ {args.warmup} warmup)")
     print(f"ONNX Export  : {'Yes' if args.export_onnx else 'No'}")
@@ -58,10 +63,11 @@ def main():
         print(f"ONNX Model Size : {profile.model_size_mb:.2f} MB  -> {profile.onnx_path}")
     print("=" * 65)
 
-    # Save JSON report
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
+    report_dict = profile.to_dict()
+    report_dict["is_demo"] = args.demo
     with open(args.output, "w", encoding="utf-8") as f:
-        json.dump(profile.to_dict(), f, indent=2)
+        json.dump(report_dict, f, indent=2)
     print(f"Benchmark report saved to: {args.output}")
 
 

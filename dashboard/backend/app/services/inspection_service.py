@@ -25,6 +25,7 @@ class InspectionService:
         filename: str = "upload.png",
         camera_id: str = "cam_main",
         part_id: Optional[str] = None,
+        view_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Runs inspection pipeline on raw uploaded image bytes."""
         try:
@@ -32,26 +33,38 @@ class InspectionService:
             import io
             pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             img_np = np.array(pil_img)
+            h, w = img_np.shape[:2]
         except Exception:
-            # Fallback to zero synthetic frame if image decode fails
             img_np = np.zeros((640, 640, 3), dtype=np.uint8)
+            h, w = 640, 640
 
         record = ImageRecord(
             image_id=f"img_{filename}",
             file_path=filename,
             camera_id=camera_id,
             part_id=part_id,
+            view_id=view_id,
+            width=w,
+            height=h,
         )
 
-        res = self.pipeline.inspect_image(img_np, image_record=record)
+        metadata = {
+            "view_id": view_id,
+            "part_id": part_id,
+            "file_path": filename,
+        }
+
+        res = self.pipeline.inspect_image(img_np, image_record=record, metadata=metadata)
         graph = self.pipeline.get_last_evidence_graph()
 
         res_dict = res.model_dump()
         if graph:
             res_dict["rule_fired"] = graph.rule_fired
             res_dict["reasoning_chain"] = graph.reasoning_chain
+            res_dict["reason"] = graph.reasoning_chain[0] if graph.reasoning_chain else "Inspection completed."
         else:
             res_dict["rule_fired"] = "DEFAULT_RULE"
             res_dict["reasoning_chain"] = []
+            res_dict["reason"] = "Inspection completed."
 
         return res_dict
